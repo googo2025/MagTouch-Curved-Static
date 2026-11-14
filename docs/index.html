@@ -21,9 +21,11 @@ table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,t
 @media(max-width:1180px) and (min-width:851px){.grid{grid-template-columns:minmax(0,1.45fr) minmax(0,1fr)}.recognition-side{grid-column:1/-1}}
 @media(max-width:850px){.grid{grid-template-columns:1fr}main{padding:12px}}
 </style>
+<script src="research-data.js"></script>
+<script src="magtouch-inference.js"></script>
 <main>
 <header><h1>MagTouch V7 · 静态单点定位</h1>
-<p>在柱侧或球帽上按住、拖动，查看同一点的参考坐标、820 点模型预测与定位误差。科研接口固定 10 mN、σ12 mm。</p>
+<p>在柱侧或球帽上按住、拖动，查看同一点的参考坐标、820 点模型预测与定位误差。科研预测固定 10 mN、σ12 mm。</p>
 <p><a href="#paper1-v7-results" onclick="document.getElementById('paper1-v7-results').scrollIntoView();return false">查看 V7 验证结果</a> · <a href="https://github.com/googo2025/MagTouch-Curved-Static">论文与复现资料</a></p><p>浏览器本地推理 · 固定 10 mN 与 σ12 mm · 双隐层和小型 MLP 均使用 820 点训练档的同一种子，模板库也来自这 820 点。此处使用 121 点工程插值，下方 V7 报表另列独立布点与局部样条结果。</p></header>
 <div class="grid">
 <section class="panel stack">
@@ -74,16 +76,9 @@ table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,t
 <output id="science-source" aria-live="polite">等待触摸</output>
 <dl><div><dt><small>计算位置</small></dt><dd id="science-reference">—</dd></div>
 <div><dt><small>论文双隐层主模型 · 820 点训练 · 预测与误差</small></dt><dd id="science-paper" class="mlp">—</dd></div>
-<div><dt><small>原 S436 MLP 预测与误差</small></dt><dd id="science-mlp" class="mlp">—</dd></div>
+<div><dt><small>小型 MLP · 820 点训练 · 预测与误差</small></dt><dd id="science-mlp" class="mlp">—</dd></div>
 <div><dt><small>模板预测与误差</small></dt><dd id="science-template" class="match">—</dd></div></dl></div>
-<div class="stack result-group"><strong>科研仿真 · S436 留出对比</strong>
-<p>133 个训练点 · 17 个留出点。平均误差 <span class="mlp">MLP 4.03 mm</span> · <span class="match">模板 10.49 mm</span>。</p>
-<p>论文双隐层静态适配（51 → 64 → 64 → 3），同一组留出点平均误差 <strong>1.04 mm</strong>，最大 4.88 mm。</p>
-<label for="compare-site">查看留出点</label><select id="compare-site"></select>
-<dl><div><dt><small>仿真参考</small></dt><dd id="compare-reference">—</dd></div>
-<div><dt><small>MLP 预测与误差</small></dt><dd id="compare-mlp" class="mlp">—</dd></div>
-<div><dt><small>模板预测与误差</small></dt><dd id="compare-template" class="match">—</dd></div></dl>
-<small>此处为已验收的留出结果。3D 为三维直线距离，Δφ 取最短方位角差。</small></div></aside>
+</aside>
 </div>
 
 <!-- COVERAGE BEGIN --><!-- COVERAGE END -->
@@ -103,8 +98,8 @@ table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,t
 <script>
 'use strict';
 const el=id=>document.getElementById(id), view=el('view'), wave=el('wave'), ctx=view.getContext('2d'), graph=wave.getContext('2d');
-const pilot={"train_sites": 26, "test_sites": 7, "mlp": {"mean": 11.99842740287333, "median": 3.652741197786135, "maximum": 58.938138713603884}, "template": {"mean": 15.269367905748952, "median": 10.0, "maximum": 40.0}, "comparisons": [{"site": "side_phi225", "reference": [-14.14213562373095, -14.14213562373095, 50.0], "mlp": [-8.211892166717725, -16.07740045450666, 108.60709135931698], "template": [-14.142135623730955, -14.14213562373095, 90.0], "mlp_mm": 58.938138713603884, "template_mm": 40.0}, {"site": "cap_beta022p5_phi270", "reference": [0.0, -7.653668647301796, 118.47759065022574], "mlp": [5.962205178875128, -13.566950277884446, 113.43093330943184], "template": [0.0, -20.0, 100.0], "mlp_mm": 9.797118992488587, "template_mm": 22.222809320784087}, {"site": "cap_beta033p75_phi090", "reference": [0.0, 11.111404660392044, 116.62939224605091], "mlp": [0.07780978831510331, 11.465086347556781, 116.3873652757211], "template": [0.0, 14.14213562373095, 114.14213562373095], "mlp_mm": 0.43557106579795535, "template_mm": 3.920685613182428}, {"site": "upper_side_z090_phi090", "reference": [0.0, 20.0, 90.0], "mlp": [0.3949335063023735, 19.99610030795004, 88.18150044300772], "template": [0.0, 20.0, 100.0], "mlp_mm": 1.8608944948006823, "template_mm": 10.0}, {"site": "shoulder_phi180", "reference": [-20.0, 0.0, 100.0], "mlp": [-19.83605871202113, -2.555538059440816, 97.39522232448729], "template": [-7.653668647301796, 0.0, 118.47759065022574], "mlp_mm": 3.652741197786135, "template_mm": 22.222809320784087}, {"site": "cap_beta084p375_phi090", "reference": [0.0, 19.90369453344394, 101.96034280659121], "mlp": [-0.02806063330156506, 19.904759549745656, 101.94929727534507], "template": [0.0, 19.945809133573803, 101.47129127199335], "mlp_mm": 0.030175108309950963, "template_mm": 0.49086153142879596}, {"site": "cap_beta084p375_phi337p5_sigma12", "reference": [18.38861600080564, -7.616814140804596, 101.96034280659121], "mlp": [15.309131408501868, -12.869751183190047, 94.96484163212331], "template": [14.142135623730947, -14.142135623730955, 100.0], "mlp_mm": 9.274352247326137, "template_mm": 8.028409554063282}]};
-const pilotAfter={"train_sites": 35, "test_sites": 7, "mlp": {"mean": 12.19814087933589, "median": 5.982059410290915, "maximum": 38.20163561417033}, "template": {"mean": 11.697939334320383, "median": 10.0, "maximum": 22.222809320784087}, "comparisons": [{"site": "side_phi225", "reference": [-14.14213562373095, -14.14213562373095, 50.0], "mlp": [-13.491635790862341, -14.764002292289252, 44.086019394500504], "template": [-14.142135623730955, -14.14213562373095, 65.0], "mlp_mm": 5.982059410290915, "template_mm": 15.0}, {"site": "cap_beta022p5_phi270", "reference": [0.0, -7.653668647301796, 118.47759065022574], "mlp": [9.943004381963675, -17.35328971291182, 82.89080969659533], "template": [0.0, -20.0, 100.0], "mlp_mm": 38.20163561417033, "template_mm": 22.222809320784087}, {"site": "cap_beta033p75_phi090", "reference": [0.0, 11.111404660392044, 116.62939224605091], "mlp": [0.07458146802328876, 11.99927738094695, 116.0003681188816], "template": [0.0, 14.14213562373095, 114.14213562373095], "mlp_mm": 1.0906657214010165, "template_mm": 3.920685613182428}, {"site": "upper_side_z090_phi090", "reference": [0.0, 20.0, 90.0], "mlp": [-0.07132777384897403, 19.9998728083125, 93.07050791078089], "template": [0.0, 20.0, 100.0], "mlp_mm": 3.0713362723199165, "template_mm": 10.0}, {"site": "shoulder_phi180", "reference": [-20.0, 0.0, 100.0], "mlp": [-19.80327388492632, -2.798275082724237, 85.43160818345835], "template": [-7.653668647301796, 0.0, 118.47759065022574], "mlp_mm": 14.836006360312233, "template_mm": 22.222809320784087}, {"site": "cap_beta084p375_phi090", "reference": [0.0, 19.90369453344394, 101.96034280659121], "mlp": [0.002929011675378689, 19.944444384241162, 101.48967433514902], "template": [0.0, 19.945809133573803, 101.47129127199335], "mlp_mm": 0.47243829169440016, "template_mm": 0.49086153142879596}, {"site": "cap_beta084p375_phi337p5_sigma12", "reference": [18.38861600080564, -7.616814140804596, 101.96034280659121], "mlp": [18.07645984575678, -8.558130604562121, 80.25013757342545], "template": [14.142135623730947, -14.142135623730955, 100.0], "mlp_mm": 21.732844485162406, "template_mm": 8.028409554063282}]};
+
+
 const R=20, H=100, TAU=2*Math.PI, baseScale=3.7;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x)), dot=(a,b)=>a.reduce((s,x,i)=>s+x*b[i],0), length=a=>Math.hypot(...a);
 const side=(z,a,r=R)=>[r*Math.cos(a),r*Math.sin(a),z];
@@ -244,12 +239,7 @@ function scene(est,field){
  });
  if(est&&visible(normal(est.p)))point(est.p,10,'#6ce2af',true,0,true);
  if(contact&&visible(normal(contact)))point(contact,5,'#ffc279',false,0,true);
- const saved=pilot.comparisons[Number(el('pilot-site').value)];
- if(el('pilot-site').value!==''&&saved){
-  if(visible(normal(saved.reference)))point(saved.reference,6,'#ffc279',true,0,true);
-  if(visible(normal(saved.mlp)))point(saved.mlp,9,'#6ce2af',true,0,true);
-  if(visible(normal(saved.template)))point(saved.template,12,'#e995cc',true,0,true);
- }
+
  ctx.clearRect(0,0,view.width,view.height);
  draws.sort((a,b)=>a.depth-b.depth).forEach(o=>o.draw());
  ctx.globalAlpha=1;ctx.font='14px system-ui';ctx.fillStyle='#d6e4f3';
@@ -291,21 +281,7 @@ function positionError(reference,prediction,distance){
   :'Δz '+Math.abs(prediction[2]-reference[2]).toFixed(2)+' mm'+(refCap!==predCap?'（跨柱侧／球帽）':'');
  return '3D '+distance.toFixed(2)+' mm · '+phi+' · '+local;
 }
-const comparisonSites=[{"site":"side_phi225","reference":[-14.14213562373095,-14.14213562373095,50.0],"mlp":[-13.88644338978386,-14.39328628153863,54.83134273649744],"template":[-14.142135623730955,-14.14213562373095,65.0],"mlp_mm":4.844618437908672,"template_mm":15.0,"split":"legacy"},{"site":"cap_beta022p5_phi270","reference":[0.0,-7.653668647301796,118.47759065022574],"mlp":[1.8649311268827133,-9.376059249919345,117.56734313531747],"template":[-1.8369701987210296e-15,-9.999999999999998,117.32050807568878],"mlp_mm":2.696877460026306,"template_mm":2.6161251692057186,"split":"legacy"},{"site":"cap_beta033p75_phi090","reference":[0.0,11.111404660392044,116.62939224605091],"mlp":[-0.5601730884356648,10.71917227295526,116.87559041615135],"template":[6.123233995736765e-16,9.999999999999998,117.32050807568878],"mlp_mm":0.7268106175082447,"template_mm":1.3087633128710452,"split":"legacy"},{"site":"upper_side_z090_phi090","reference":[0.0,20.0,90.0],"mlp":[-0.2504593941447568,19.998431690807273,91.16039671984264],"template":[1.2246467991473533e-15,20.0,88.0],"mlp_mm":1.1871195875439995,"template_mm":2.0,"split":"legacy"},{"site":"lower_side_z012_phi090","reference":[0.0,20.0,12.0],"mlp":[-0.48811240559164204,19.99404276977289,9.911257000054604],"template":[1.2246467991473533e-15,20.0,50.0],"mlp_mm":2.1450259972562873,"template_mm":38.0,"split":"side_low_phi90"},{"site":"shoulder_phi315","reference":[14.142135623730947,-14.142135623730955,100.0],"mlp":[14.097115531958696,-14.187012852556698,94.70240556230958],"template":[13.660254037844384,-13.66025403784439,105.17638090205041],"mlp_mm":5.297975802188865,"template_mm":5.221047688802059,"split":"seam_phi315"},{"site":"shoulder_phi180","reference":[-20.0,0.0,100.0],"mlp":[-19.99988805040448,-0.06691764556653162,98.26003100083183],"template":[-19.987816540381914,2.4478015548123235e-15,100.69798993405003],"mlp_mm":1.741255323577551,"template_mm":0.6980962574913493,"split":"legacy"},{"site":"cap_beta084p375_phi090","reference":[0.0,19.90369453344394,101.96034280659121],"mlp":[-0.2137543040174292,18.99140168331179,106.26745332656064],"template":[1.2199866483456202e-15,19.92389396183491,101.74311485495316],"mlp_mm":4.407853239176587,"template_mm":0.21816507484055622,"split":"legacy"},{"site":"cap_beta084p375_phi337p5_sigma12","reference":[18.38861600080564,-7.616814140804596,101.96034280659121],"mlp":[18.720875610730484,-7.037671231846264,96.78279110724668],"template":[13.660254037844384,-13.66025403784439,105.17638090205041],"mlp_mm":5.220425706469693,"template_mm":8.320064523388988,"split":"legacy"},{"site":"cap_beta045_phi225_sigma12","reference":[-10.000000000000002,-9.999999999999998,114.14213562373095],"mlp":[-10.727020421577073,-8.813610471337544,114.39622531549843],"template":[-13.66025403784439,-13.660254037844386,105.17638090205041],"mlp_mm":1.4144399522682165,"template_mm":10.352761804100835,"split":"cap_midlat_phi225"},{"site":"cap_beta060_phi225_sigma12","reference":[-12.247448713915892,-12.24744871391589,110.0],"mlp":[-12.41146450956183,-11.27876100893282,110.89702247548678],"template":[-13.66025403784439,-13.660254037844386,105.17638090205041],"mlp_mm":1.3303782817436423,"template_mm":5.221047688802068,"split":"cap_midlat_phi225"},{"site":"cap_beta085_phi315_sigma12","reference":[14.088320528055169,-14.088320528055176,101.74311485495316],"mlp":[14.160947890408856,-14.123298299091648,96.82926320337955],"template":[13.660254037844384,-13.66025403784439,105.17638090205041],"mlp_mm":4.914512817350445,"template_mm":3.4862297099063233,"split":"seam_phi315"},{"site":"cap_beta088_phi315_sigma12","reference":[14.133520616816686,-14.133520616816693,100.69798993405003],"mlp":[14.121159758478763,-14.163080423252563,95.5383792949757],"template":[13.660254037844384,-13.66025403784439,105.17638090205041],"mlp_mm":5.159710119747464,"template_mm":4.528128550716256,"split":"seam_phi315"},{"site":"side_z003_phi090_sigma12","reference":[1.2246467991473533e-15,20.0,3.0],"mlp":[-0.8704805020206827,19.98104761256531,9.609590649101683],"template":[1.2246467991473533e-15,20.0,50.0],"mlp_mm":6.666692136740684,"template_mm":47.0,"split":"side_low_phi90"},{"site":"side_z030_phi090_sigma12","reference":[1.2246467991473533e-15,20.0,30.0],"mlp":[-0.33271613799909927,19.99723230778487,21.69036971195198],"template":[1.2246467991473533e-15,20.0,50.0],"mlp_mm":8.316289028926919,"template_mm":20.0,"split":"side_low_phi90"},{"site":"side_z097_phi315_sigma12","reference":[14.142135623730947,-14.142135623730955,97.0],"mlp":[14.024873779678602,-14.25843313495854,90.34904524623119],"template":[13.660254037844384,-13.66025403784439,105.17638090205041],"mlp_mm":6.653004929193145,"template_mm":8.204731828710052,"split":"seam_phi315"},{"site":"side_z099_phi315_sigma12","reference":[14.142135623730947,-14.142135623730955,99.0],"mlp":[14.070337483006185,-14.213571089431085,93.21185997768775],"template":[13.660254037844384,-13.66025403784439,105.17638090205041],"mlp_mm":5.789026076695817,"template_mm":6.213863594644329,"split":"seam_phi315"}];
-const compareSelect=el('compare-site');
-const comparisonGroup={legacy:'原7点',cap_midlat_phi225:'球帽留出',seam_phi315:'接缝留出',side_low_phi90:'低柱侧留出'};
-comparisonSites.forEach((row,i)=>{
- const option=new Option((comparisonGroup[row.split]||row.split)+' · '+describe(row.reference),String(i));
- compareSelect.add(option);
-});
-function showComparison(){
- const row=comparisonSites[Number(compareSelect.value)];
- el('compare-reference').textContent=describe(row.reference);
- el('compare-mlp').textContent=describe(row.mlp)+' · '+positionError(row.reference,row.mlp,row.mlp_mm);
- el('compare-template').textContent=describe(row.template)+' · '+positionError(row.reference,row.template,row.template_mm);
-}
-compareSelect.addEventListener('change',showComparison);
-showComparison();
+
 
 const scienceStatus={
   direct:'工程锚点 · 直接磁场',
@@ -457,43 +433,7 @@ function loop(now){
  update(now);
  if(t<1)requestAnimationFrame(loop);else stopPlayback();
 }
-const pilotSite=el('pilot-site');
-const xyz=p=>p.map(v=>v.toFixed(2)).join(', ');
-for(const [i,r] of pilot.comparisons.entries()){
- const option=document.createElement('option');option.value=i;option.textContent=describe(r.reference);pilotSite.append(option);
- const tr=document.createElement('tr');
- for(const value of [option.textContent,xyz(r.reference),xyz(r.mlp),r.mlp_mm.toFixed(2),xyz(r.template),r.template_mm.toFixed(2)])tr.insertCell().textContent=value;
- el('pilot-values').append(tr);
-}
-el('pilot-summary').textContent='补数前：'+pilot.train_sites+' 个训练位点。平均误差 MLP '+pilot.mlp.mean.toFixed(2)+' mm，模板 '+pilot.template.mean.toFixed(2)
- +' mm。中位数 '+pilot.mlp.median.toFixed(2)+' / '+pilot.template.median.toFixed(2)
- +' mm，最大误差 '+pilot.mlp.maximum.toFixed(2)+' / '+pilot.template.maximum.toFixed(2)+' mm。';
-if(pilotAfter){
- const after=el('pilot-after-summary');
- after.textContent='补数后：'+pilotAfter.train_sites+' 个训练位点，原 7 个留出位点。平均误差 MLP '+pilotAfter.mlp.mean.toFixed(2)+' mm，模板 '+pilotAfter.template.mean.toFixed(2)
-  +' mm。中位数 '+pilotAfter.mlp.median.toFixed(2)+' / '+pilotAfter.template.median.toFixed(2)+' mm，最大误差 '+pilotAfter.mlp.maximum.toFixed(2)+' / '+pilotAfter.template.maximum.toFixed(2)+' mm。';
- const table=document.createElement('table'), head=table.createTHead().insertRow();
- for(const name of ['留出位点','参考 XYZ','MLP 前 → 后','MLP 补数后 XYZ','模板 前 → 后','模板补数后 XYZ']){
-  const th=document.createElement('th');th.textContent=name;head.append(th);
- }
- const body=table.createTBody();
- for(const old of pilot.comparisons){
-  const next=pilotAfter.comparisons.find(r=>r.site===old.site);
-  const tr=body.insertRow();
-  if(old.site==='side_phi225')tr.style.background='#2b3140';
-  for(const value of [describe(old.reference),xyz(old.reference),old.mlp_mm.toFixed(2)+' → '+next.mlp_mm.toFixed(2),xyz(next.mlp),old.template_mm.toFixed(2)+' → '+next.template_mm.toFixed(2),xyz(next.template)])tr.insertCell().textContent=value;
- }
- const panel=el('pilot-before-after');panel.append(table);panel.hidden=false;
-}
-function showPilot(){
- if(pilotSite.value!==''){
-  const [x,y]=pilot.comparisons[Number(pilotSite.value)].reference;
-  yaw=Math.atan2(x,y);elev=.32;zoom=1;
- }
- update(performance.now(),false);
-}
-pilotSite.addEventListener('change',showPilot);
-el('pilot-show').onclick=()=>{if(pilotSite.value==='')pilotSite.value='0';showPilot();view.scrollIntoView({block:'center',behavior:'smooth'});};
+
 setInterval(()=>{if(animation===null)update(performance.now());},80);
 update(performance.now());
 </script>
