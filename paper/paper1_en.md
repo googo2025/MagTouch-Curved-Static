@@ -92,6 +92,14 @@ The reverse triangle inequality bounds the paired error change by the prediction
 
 (12)  |Δe| ≤ ‖g(b̃)−g(b)‖,   g(b+δb)−g(b) = J_g(b)δb + o(‖δb‖).
 
+For the two-hidden-layer model, differentiating the input standardization, the two tanh layers, the coordinate scaling and the surface projection gives Equation (13). Here J_Π is evaluated at the Cartesian coordinates before projection, and the squares of h₁ and h₂ are elementwise. Channel scaling, the network and the projection jointly determine the surface displacement caused by a given field perturbation. This derivative describes the response within one smooth projection branch.
+
+(13)  J_g = J_Π D W₃ diag(1−h₂²) W₂ diag(1−h₁²) W₁ diag(1/s_b).
+
+Let r=g(b)−s be the localization residual under the direct field and let Δp=g(b̃)−g(b) be the change in prediction caused by replacing only the input field. Equation (14) is exact, including when the projection branch changes. The change in squared localization error depends on the size of this displacement and its direction relative to the original residual. Geometric support determines whether interpolation is defined. Equations (13) and (14) explain why supported queries with similar field errors can still yield different localization errors.
+
+(14)  ‖r+Δp‖²−‖r‖² = 2 r·Δp + ‖Δp‖².
+
 ### 2.3　Comparisons and statistics
 
 Primary tests use 30 independent sites: ten on the cylinder, five on the cylindrical side of the seam, five on its cap side and ten on the cap. A separate 17-site historical cohort provides a direct-field comparison. Engineering interpolation uses 121 anchors with a bilinear stencil in periodic azimuth and the regional vertical coordinate (cylinder height or cap polar angle), sharing pole and seam anchors. Under strict region holdout, a query is supported only when every grid anchor with nonzero weight is allowed. A separate 147-anchor outside-region layout is also evaluated for support at each site. Anchor fields are available to the engineering interpolator. Direct fields at test sites are held for evaluation and as matched references.
@@ -161,6 +169,8 @@ The lower sidewall lies at the edge of anchor support. At equal count, shorter b
 
 Direct-field results show that the 51 differential channels support millimeter and submillimeter localization on the tested independent sites under fixed load and idealized material and sensing geometry. The crossed comparison identifies a dependence on field source. Coverage can disappear without support, and weak support can amplify reconstruction error. Boundary sampling and local splines improved the upper tail in their paired cohorts. The transition comparison supports returning to linear interpolation at the verified coordinates. Since the neighbor set and containing triangle can change with position, endpoint conditions on the blend alone cannot guarantee differentiability over the surface.
 
+The matched 30-site comparison holds the inverse map fixed and changes only its magnetic input. The engineering stencil supported every site, with a mean error increase of 0.588 mm. The outside-region anchors likewise supported all 30 sites, with large support spans and large cylinder errors occurring together. These observations motivate reporting eligible pairs, magnetic-field error and tail localization error together. Equations (13) and (14) identify local sensitivity and residual direction as factors, while the paired experiment measures the overall effect of replacing the magnetic input. The independent fixed-anchor spline comparison further tests the contribution of the reconstruction method itself.
+
 ### 4.1　Context within magnetic tactile sensing
 
 Prototype studies establish magnetic touch across tasks including curved surface classification, continuous planar localization and transfer across specimens. The comparison below reports the tasks and units of the original studies to contextualize the present contribution. Differences in geometry, load, spatial partitions and metrics make evaluation design and operating conditions central to interpreting these results.
@@ -176,7 +186,7 @@ Prototype studies establish magnetic touch across tasks including curved surface
 
 ### 4.2　Scope and reproducibility
 
-The evidence concerns a reference linear-elastic silicone, idealized geometry and magnets, and static single contact at 10 mN with a 12 mm Gaussian width. Finite test cohorts and three seeds do not characterize the population tail over the entire surface. Outside anchor support, the study records the failure of coverage under strict holdout and the errors under outside-region reconstruction. Load variation, probe shape, dynamic multi-contact, material calibration and measured noise require dedicated tests. The project archive retains the mesh, load and field solver settings, site partitions, trained weights and matched predictions for reproduction. Author details, affiliations, funding and declarations remain for the authors to complete.
+The evidence concerns a reference linear-elastic silicone, idealized geometry and magnets, and static single contact at 10 mN with a 12 mm Gaussian width. Finite test cohorts and three seeds do not characterize the population tail over the entire surface. Outside anchor support, the study records the failure of coverage under strict holdout and the errors under outside-region reconstruction. Load variation, probe shape, dynamic multi-contact, material calibration and measured noise require dedicated tests. The public companion, MagTouch Curved Static (https://github.com/googo2025/MagTouch-Curved-Static), includes the training, development and independent test partitions, matched Hall fields and localization results, six network checkpoints, evaluation code, the forward reference implementation and the browser demonstration. Run python src/reproduce.py to reproduce the main results and independent interpolation comparisons. The full forward calculation additionally uses the input archive and solver environment documented in the Releases. Author details, affiliations, funding and declarations remain for the authors to complete.
 
 ## 5　Conclusion
 

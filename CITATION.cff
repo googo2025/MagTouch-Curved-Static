@@ -4,5 +4,5 @@ type: dataset
 title: "MagTouch Curved Static: single-touch localization and sparse magnetic field reconstruction"
 authors:
   - name: "MagTouch project"
-version: "1.0.2"
+version: "1.0.3"
 url: "https://github.com/googo2025/MagTouch-Curved-Static"

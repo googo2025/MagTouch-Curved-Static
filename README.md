@@ -23,6 +23,8 @@ The experiments are static single-contact simulations at a fixed 10 mN normal lo
 
 Strict region exclusion on the original engineering grid gave 0/30 supported matches. Boundary-enriched sampling and the local thin-plate spline reduced P95 in their respective independent comparisons. Each cohort retains its own denominator.
 
+The paper derives the local Hall-to-position sensitivity of the frozen decoder and decomposes the paired change in squared localization error. The field-source, equal-anchor and fixed-anchor comparisons link that analysis to the validated static experiments.
+
 ## Reproduce the tables
 
 ```sh
