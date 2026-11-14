@@ -2,6 +2,10 @@
 
 Reproducibility companion for **Single touch localization and sparse magnetic field reconstruction on a cylinder with a hemispherical cap**.
 
+![MagTouch sensor structure: cylinder and hemispherical cap, axial section and Hall readout](paper/figure_1_sensor_structure_zh.png)
+
+*Simulation geometry: 155 magnets and 17 triaxial Hall sites. See the [English figure](paper/figure_1_sensor_structure_en.png) or the [Chinese vector figure](paper/figure_1_sensor_structure_zh.svg).*
+
 - [English manuscript](paper/paper1_en.pdf) · [中文论文](paper/paper1_zh.pdf)
 - [Interactive 3D demo](https://googo2025.github.io/MagTouch-Curved-Static/) · [Demo source](docs/)
 - [Dataset and protocol](data/) · [Frozen models](models/) · [Evaluation results](results/) · [Forward-simulation reference](forward/)

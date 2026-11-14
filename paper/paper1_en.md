@@ -14,9 +14,19 @@ We ask how much a two-hidden-layer model improves localization relative to a com
 
 ## 2　Methods
 
-### 2.1　Continuous surface and forward model
+### 2.1　Sensor architecture and sensing principle
 
-The exterior combines a cylindrical sidewall of 20 mm radius and 100 mm height with a hemisphere of the same radius. The inner reference radius is 14 mm. The frozen 2.5 mm inner-layer design contains 155 perfectly bonded, rigid cylindrical magnets of 5 mm diameter and 1 mm thickness with alternating polarities. Seventeen triaxial Hall sites and their measurement axes are fixed to the base. The curved mesh comprises 184,388 tetrahedra, and mixed P2/P1 discretization represents the nearly incompressible elastomer. The forward equations below specify traction, displacement constraints and field measurements.
+The sensing surface of MagTouch combines a cylindrical sidewall with a hemispherical cap (Fig. 1). The outer diameter is 40 mm, the straight cylinder is 100 mm high, and the cap has an outer radius of 20 mm, giving an overall height of 120 mm. A contact can be placed on the sidewall, near the seam or on the cap. The basal annulus provides the mounting and constraint boundary. The estimation target is the three-dimensional position of a single static contact on the unloaded outer surface, defined as the center of applied traction in the forward model. The normal resultant is fixed at 10 mN for comparing field signatures and localization errors across sites.
+
+The cross section comprises a deformable silicone shell, embedded disc magnets and an internal, rigidly supported Hall sensing layer. The reference inner radius is 14 mm. The 155 magnets measure 5 mm in diameter and 1 mm in thickness. Their centers lie on a nominal concentric surface of radius 17 mm. The sidewall has ten rings of 12 magnets at 10 mm increments from z=5 to 95 mm. Three cap rings have 16, 12 and 6 magnets, plus one at the apex. The magnetization axes follow the local surface normals, with checkerboard polarity. The magnets are perfectly bonded to the silicone and modeled as rigid bodies that translate and rotate by small angles as the shell deforms.
+
+The Hall observation sites lie inside the inner wall on a nominal concentric surface of radius 13.4 mm. An ideal rigid support holds their positions and reading axes fixed. On the sidewall, four equally spaced sites are placed at each of z=25, 50 and 75 mm, with starting azimuths of 0°, 22.5° and 45°, respectively. The cap adds four sites at a polar angle of 60° and one at the apex, giving 17 triaxial sites in total. The polar angle is measured from +z. Contact-induced magnet translations and rotations change the triaxial fields at multiple fixed Hall sites. The unloaded readings are subtracted and the signed differences are concatenated in a fixed order into 51 channels. The inverse model estimates the surface contact location from these differences.
+
+Figure 1 uses the frozen nominal magnet and Hall coordinates. The rigid support in the section schematic denotes the model boundary condition. It does not specify a fabrication or mounting process. The forward model uses 184,388 curved tetrahedra and a mixed P2/P1 discretization. The following equations relate applied traction to mechanical response and Hall readout.
+
+![Figure 1. Simulated architecture of the cylinder–hemisphere sensor.](figure_1_sensor_structure_en.svg)
+
+Figure 1. Simulated architecture of the cylinder–hemisphere sensor.. A, nominal magnet and Hall locations, with back-side markers faded. B, axial section with schematic magnets and rigid support. C, the readout chain from shell loading to 3D localization.
 
 #### Traction and elasticity
 
@@ -94,7 +104,7 @@ Localization error is the Euclidean distance between the predicted and reference
 
 ### 3.1　Crossed comparison of inverse models and field inputs
 
-Table 1 summarizes the three inverse models under all supported inputs. Figure 1 compares matched cumulative errors for the two-hidden-layer model, and Fig. 2 shows development errors for the two models trained on the same 820 sites. The maximum two-hidden-layer error with direct fields was 1.495 mm. On the 17 historical sites, its mean and P95 with direct fields were 0.407 and 0.974 mm. The direct-field RMSE of the compact network and template matcher was 1.213 and 13.845 mm, respectively. Network depth and width both differ, so this is a contrast between configurations. The two-hidden-layer model retained the lowest mean error for each field input, with a pronounced upper tail under outside-region reconstruction.
+Table 1 summarizes the three inverse models under all supported inputs. Figure 2 compares matched cumulative errors for the two-hidden-layer model, and Fig. 3 shows development errors for the two models trained on the same 820 sites. The maximum two-hidden-layer error with direct fields was 1.495 mm. On the 17 historical sites, its mean and P95 with direct fields were 0.407 and 0.974 mm. The direct-field RMSE of the compact network and template matcher was 1.213 and 13.845 mm, respectively. Network depth and width both differ, so this is a contrast between configurations. The two-hidden-layer model retained the lowest mean error for each field input, with a pronounced upper tail under outside-region reconstruction.
 
 Strict region holdout yielded 0/30 eligible pairs on the engineering grid. Removing anchors in held-out regions leaves no permitted engineering stencil for those sites. The distinct outside-region bank provided support but retained a maximum error of 24.001 mm. With engineering fields, seven of 15 predictions for the five sites on the cap side of the seam crossed to the cylinder. The matched direct-field count was 0/15. The difference is consistent with localized degradation in the reconstructed input.
 
@@ -108,17 +118,17 @@ Table 1. Crossed comparison on 30 independent positions. Cells show mean / RMSE 
 
 Relative to direct fields at the same sites, the mean two-layer error change was 0.588 [0.426, 0.757] mm for engineering interpolation and 5.098 [2.662, 7.809] mm for outside-region interpolation. Brackets give descriptive 95% percentile bootstrap intervals. Errors were first averaged across seeds within a site, and then the 30 sites were resampled 5000 times. These intervals describe the tested design and do not represent uncertainty across arbitrary surface locations.
 
-![Figure 1. Matched localization error distributions](figure_1_error_distribution_en.svg)
+![Figure 2. Matched localization error distributions](figure_2_error_distribution_en.svg)
 
-Figure 1. Matched localization error distributions. Thirty sites and three seeds under three field inputs.
+Figure 2. Matched localization error distributions. Thirty sites and three seeds under three field inputs.
 
-![Figure 2. Development-set learning curves](figure_2_development_curves_en.svg)
+![Figure 3. Development-set learning curves](figure_3_development_curves_en.svg)
 
-Figure 2. Development-set learning curves. Both models use the same 820 training sites.
+Figure 3. Development-set learning curves. Both models use the same 820 training sites.
 
 ### 3.2　Anchor placement and reconstruction at finite budget
 
-Table 2 brings together equal-count layouts, interpolation at fixed layout and the transition-zone check. Each row pairs fields at the same coordinates within that cohort. Figures 3–5 show error distributions and regional detail for the first three rows. Perimeter-prioritized placement reduced upper-tail error overall, while the mean on the cylinder side of the seam increased from 0.903 to 0.987 mm. Boundary-enriched placement reduced lower-cylinder P95 from 14.919 to 3.906 mm in a separate 12-site cohort. For that cohort, the mean 3D and meridional distance errors on the cylinder side of the seam were 0.872 and 0.819 mm, equal to the uniform result. The cap side and cap also met the adoption criteria.
+Table 2 brings together equal-count layouts, interpolation at fixed layout and the transition-zone check. Each row pairs fields at the same coordinates within that cohort. Figures 4–6 show error distributions and regional detail for the first three rows. Perimeter-prioritized placement reduced upper-tail error overall, while the mean on the cylinder side of the seam increased from 0.903 to 0.987 mm. Boundary-enriched placement reduced lower-cylinder P95 from 14.919 to 3.906 mm in a separate 12-site cohort. For that cohort, the mean 3D and meridional distance errors on the cylinder side of the seam were 0.872 and 0.819 mm, equal to the uniform result. The cap side and cap also met the adoption criteria.
 
 At fixed boundary-enriched layout, the spline reduced the upper tail on a separate set of 14 sites. The cohort mean fell from 2.658 to 0.825 mm, the maximum from 15.723 to 1.892 mm and the mean relative field error from 12.81% to 5.29%. Predictions on the seam and cap were unchanged. On the ten additional transition sites, mean relative field error fell from 3.28% to 2.23%, azimuth P95 from 1.207° to 1.182°, and mean axial error from 1.026 to 0.781 mm. Both sites at z=67.5 mm recovered Delaunay elementwise. The four sites at z=56.5 and 62.5 mm retained axial error, with a spline localization P95 of 1.900 mm compared with 0.761 mm for direct fields.
 
@@ -131,17 +141,17 @@ Table 2. Matched field reconstruction studies with a fixed inverse model. P95 va
 | Local spline at fixed layout | 14 / 42 | 14.633 → 1.774 | 0.905 |
 | Cylindrical blend | 10 / 30 | 1.834 → 1.748 | 0.704 |
 
-![Figure 3. Equal-count layouts](figure_3_anchor_placement_en.svg)
+![Figure 4. Equal-count layouts](figure_4_anchor_placement_en.svg)
 
-Figure 3. Equal-count layouts. Twelve sites and 36 predictions. Panel B shows mean angular errors by region.
+Figure 4. Equal-count layouts. Twelve sites and 36 predictions. Panel B shows mean angular errors by region.
 
-![Figure 4. Boundary-enriched placement](figure_4_boundary_optimization_en.svg)
+![Figure 5. Boundary-enriched placement](figure_5_boundary_optimization_en.svg)
 
-Figure 4. Boundary-enriched placement. Twelve separate sites at a fixed budget of 147 anchors.
+Figure 5. Boundary-enriched placement. Twelve separate sites at a fixed budget of 147 anchors.
 
-![Figure 5. Local splines at fixed anchor layout](figure_5_local_interpolation_en.svg)
+![Figure 6. Local splines at fixed anchor layout](figure_6_local_interpolation_en.svg)
 
-Figure 5. Local splines at fixed anchor layout. Fourteen sites and 42 predictions.
+Figure 6. Local splines at fixed anchor layout. Fourteen sites and 42 predictions.
 
 ### 3.3　Spatial support and localization error
 
