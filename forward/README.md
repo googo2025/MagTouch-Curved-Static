@@ -1,0 +1,5 @@
+# Forward-simulation reference
+
+The mechanics uses small strain, mixed P2/P1 displacement–pressure degrees of freedom, rigid magnet constraints and a normalized Gaussian traction. `configuration.json` records the archived load and numerical acceptance settings for an example pair. Meshes, degrees-of-freedom maps and constraints are provided alongside the reference code. `magnetic-configuration.json` records Hall layouts and integration settings. `magnetic_core.py` and `legacy_core.py` implement the finite-cylinder field operator.
+
+The archival mechanics driver expects preassembled sparse K, B and M and original launch receipts. Read the stored driver as the reference for the numerical algorithm. The standard table reproduction workflow starts from the released, validated 51-channel fields, so it does not require launching those archived jobs or a GPU. The separate forward-input asset supplies the matrices and a matching nominal Hall/magnet input and accepted pose. Local environment and path integration are required to rerun the archived mechanics controller.

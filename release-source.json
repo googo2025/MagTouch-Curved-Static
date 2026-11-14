@@ -1,0 +1,21 @@
+{
+  "manuscript_verification_sha256": "8fa7e1b60d461e234798f28b99e8246a2e517749d7125d203f7599acee333b4d",
+  "primary_result_sha256": "c31d4d86b14b781601512cfa71b9bda1aaf60bf11a232146b9639f1fc16c3062",
+  "weight_sha256": {
+    "static_1_20261110": "904c971bc28ced1d14c70699d272c134fcfa35162847bd42e70c84b35739da17",
+    "static_1_20261111": "39d028bc799a16a2451c141acff70b20122a9f5066d4a5cf6099fa19a24837ac",
+    "static_1_20261112": "2c05b5dadf0f665dff7a5970d052fb7ce241ed04a84ffe7f54dda3e7c65bec58",
+    "static_2_20261110": "969a57891d2c868a688592280b254a97fc3c89a3740b53388f45cbf538dc27ad",
+    "static_2_20261111": "169b291ad7b0b126de765d124d7bfc2d13cc7da0de0bf267524c6fb1e09ba7df",
+    "static_2_20261112": "e88f48c8c555f4e08490a9cd76c13003a90bf94e9b8fc1cfaa0f0534af73e8e1"
+  },
+  "primary_sites": 30,
+  "supplementary_sites": [
+    12,
+    12,
+    14,
+    10
+  ],
+  "primary_variants": 3,
+  "neural_checkpoints": 6
+}

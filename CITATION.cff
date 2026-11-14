@@ -1,0 +1,8 @@
+cff-version: 1.2.0
+message: "Cite this reproducibility companion by its title and release version. Manuscript author metadata is pending."
+type: dataset
+title: "MagTouch Curved Static: single-touch localization and sparse magnetic field reconstruction"
+authors:
+  - name: "MagTouch project"
+version: "1.0.0"
+url: "https://github.com/googo2025/MagTouch-Curved-Static"

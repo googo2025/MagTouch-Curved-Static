@@ -1,0 +1,1 @@
+{"load_mN":10,"sigma_mm":12,"radius_mm":20,"height_mm":100,"E_MPa":1,"poisson_ratio":0.49,"channels":51,"field_units":"uT/T","integration_order":96,"dataset_sha256":"d69214a8064291d5bc39f0c29f829855d6d7540d8f67c8fa5e2331bd53b2edac","seeds":[20261110,20261111,20261112],"numpy":"2.4.6","scipy":"1.17.1"}

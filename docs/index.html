@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MagTouch · 柱—半球触摸实验台</title>
+<style>
+:root{color-scheme:dark;--bg:#101722;--panel:#182231;--line:#314459;--text:#e8eef6;--muted:#aebfd2;--blue:#70c4ff;--pink:#e995cc;--green:#6ce2af;--amber:#ffc279}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,sans-serif}
+main{max-width:1800px;margin:auto;padding:20px}h1,h2,p{margin:0}h1{font-size:25px}h2{font-size:16px}
+p,small{color:var(--muted)}header{margin-bottom:14px}header a{color:var(--blue)}.grid{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr) minmax(225px,.55fr);gap:12px}
+.panel{border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:13px;min-width:0}.stack{display:grid;align-content:start;gap:10px}
+.controls{display:flex;flex-wrap:wrap;align-items:center;gap:8px 13px}.controls label{display:inline-flex;align-items:center;gap:5px}
+button,select{font:inherit;color:inherit;background:#223247;border:1px solid #47617b;border-radius:7px;padding:5px 8px}
+button[aria-pressed=true]{background:#275478;border-color:var(--blue)}input[type=range]{width:95px;accent-color:var(--blue)}
+canvas{width:100%;display:block;background:#121c29;border-radius:8px}#view{aspect-ratio:680/570;touch-action:none;cursor:crosshair}#wave{aspect-ratio:480/150}
+.stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.stats>div{border:1px solid var(--line);border-radius:8px;padding:7px}
+output{display:block;color:var(--text);font-variant-numeric:tabular-nums}#field{color:var(--blue)}#estimate{color:var(--green)}
+.legend{display:flex;gap:10px;flex-wrap:wrap}.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px}.scroll{max-height:215px;overflow:auto}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,td{text-align:right;padding:3px 7px;border-bottom:1px solid var(--line)}th:first-child,td:first-child{text-align:left}thead{position:sticky;top:0;background:var(--panel)}
+.recognition-side{overflow-wrap:anywhere}.recognition-side dl{margin:0;display:grid;gap:6px}.recognition-side dd{margin:0;font-variant-numeric:tabular-nums}.recognition-side .result-group{border-top:1px solid var(--line);padding-top:10px}.recognition-side select{width:100%}.recognition-side .mlp{color:var(--green)}.recognition-side .match{color:var(--pink)}
+@media(max-width:1180px) and (min-width:851px){.grid{grid-template-columns:minmax(0,1.45fr) minmax(0,1fr)}.recognition-side{grid-column:1/-1}}
+@media(max-width:850px){.grid{grid-template-columns:1fr}main{padding:12px}}
+</style>
+<main>
+<header><h1>MagTouch V7 · 静态单点定位</h1>
+<p>在柱侧或球帽上按住、拖动，查看同一点的参考坐标、820 点模型预测与定位误差。科研接口固定 10 mN、σ12 mm。</p>
+<p><a href="#paper1-v7-results" onclick="document.getElementById('paper1-v7-results').scrollIntoView();return false">查看 V7 验证结果</a> · <a href="https://github.com/googo2025/MagTouch-Curved-Static">论文与复现资料</a></p><p>浏览器本地推理 · 固定 10 mN 与 σ12 mm · 双隐层和小型 MLP 均使用 820 点训练档的同一种子，模板库也来自这 820 点。此处使用 121 点工程插值，下方 V7 报表另列独立布点与局部样条结果。</p></header>
+<div class="grid">
+<section class="panel stack">
+<h2>3D 结构与接触点</h2>
+<div class="controls" id="layers">
+<label><input type="checkbox" data-layer="outer" checked>外壳</label>
+<label><input type="checkbox" data-layer="magnet" checked>圆片磁体</label>
+<label><input type="checkbox" data-layer="sensor" checked>Hall 传感器</label>
+<label><input type="checkbox" data-layer="inner" checked>内壳</label>
+<label><input type="checkbox" data-layer="base" checked>底座</label>
+<label>外壳透明度 <input id="opacity" type="range" min="5" max="100" value="17"></label>
+<button id="explode" aria-pressed="false">分层展开</button>
+</div>
+<div class="controls">
+<button id="touch" aria-pressed="true">点击／拖动触摸</button><button id="orbit" aria-pressed="false">拖动旋转</button>
+<button id="reset">复位视角</button><button id="release">释放接触点</button>
+</div>
+<canvas id="view" width="680" height="570" tabindex="0" aria-label="柱半球 3D 模型"></canvas>
+<small>滚轮缩放，按住滚轮拖动旋转。左键或手指可沿可见表面滑动，松开即释放。旋转时自动隐藏背面的结构。</small>
+</section>
+<section class="panel stack">
+<h2>同步磁场与识别</h2>
+<div class="controls">
+<input id="force" type="hidden" value="10"><span id="force-label" hidden></span>
+<label>干扰 <input id="noise" type="range" min="0" max="40" value="0"><span id="noise-label"></span></label>
+<label>动作 <select id="action"><option value="tap">轻点</option><option value="press">按压</option><option value="slide">滑动</option></select></label>
+<button id="play">播放预设</button>
+</div>
+<div class="stats" aria-live="polite">
+<div><small>输入位置</small><output id="actual"></output></div>
+<div><small>触摸检测</small><output id="detected"></output></div>
+<div><small>模板估计</small><output id="estimate"></output></div>
+<div><small>信号强度 / 自适应阈值</small><output id="field"></output></div>
+</div>
+<div class="controls"><label>观察通道 <select id="channel"><option value="auto">自动 · 活跃通道</option></select></label><button id="clear">清空曲线</button></div>
+<canvas id="wave" width="480" height="150" aria-label="活跃或手选传感器三个分量的实时波形"></canvas>
+<small id="channel-status" aria-live="polite"></small><div class="legend"><small style="color:#70c4ff">━ ΔBx</small><small style="color:#e995cc">━ ΔBy</small><small style="color:#6ce2af">━ ΔBz</small><small>同一时刻更新曲线、表格和定位标记</small></div>
+<div class="scroll"><table aria-label="实时 Hall 磁场变化"><thead><tr><th>示意传感器</th><th>ΔBx</th><th>ΔBy</th><th>ΔBz</th><th>幅值</th></tr></thead><tbody id="values"></tbody></table></div>
+</section>
+<aside class="panel stack recognition-side" aria-label="识别结果对比">
+<h2>识别结果与误差</h2>
+<div class="stack"><strong>当前触摸 · 网页演示</strong>
+<dl><div><dt><small>输入位置</small></dt><dd id="compare-actual">—</dd></div>
+<div><dt><small>模板预测</small></dt><dd id="compare-estimate">—</dd></div>
+<div><dt><small>三维距离与分量误差</small></dt><dd id="compare-error" class="match">—</dd></div></dl></div>
+<div class="stack result-group"><strong>当前触摸 · 科研实时定位</strong>
+<small>固定 0.01 N、σ12 mm、无干扰。与演示滑块独立。三种方法使用同一份科研磁场。</small>
+<output id="science-source" aria-live="polite">等待触摸</output>
+<dl><div><dt><small>计算位置</small></dt><dd id="science-reference">—</dd></div>
+<div><dt><small>论文双隐层主模型 · 820 点训练 · 预测与误差</small></dt><dd id="science-paper" class="mlp">—</dd></div>
+<div><dt><small>原 S436 MLP 预测与误差</small></dt><dd id="science-mlp" class="mlp">—</dd></div>
+<div><dt><small>模板预测与误差</small></dt><dd id="science-template" class="match">—</dd></div></dl></div>
+<div class="stack result-group"><strong>科研仿真 · S436 留出对比</strong>
+<p>133 个训练点 · 17 个留出点。平均误差 <span class="mlp">MLP 4.03 mm</span> · <span class="match">模板 10.49 mm</span>。</p>
+<p>论文双隐层静态适配（51 → 64 → 64 → 3），同一组留出点平均误差 <strong>1.04 mm</strong>，最大 4.88 mm。</p>
+<label for="compare-site">查看留出点</label><select id="compare-site"></select>
+<dl><div><dt><small>仿真参考</small></dt><dd id="compare-reference">—</dd></div>
+<div><dt><small>MLP 预测与误差</small></dt><dd id="compare-mlp" class="mlp">—</dd></div>
+<div><dt><small>模板预测与误差</small></dt><dd id="compare-template" class="match">—</dd></div></dl>
+<small>此处为已验收的留出结果。3D 为三维直线距离，Δφ 取最短方位角差。</small></div></aside>
+</div>
+
+<!-- COVERAGE BEGIN --><!-- COVERAGE END -->
+<!-- PAPER1 V7 BEGIN -->
+<section class="panel stack" id="paper1-v7-results" aria-labelledby="paper1-v7-title">
+<h2 id="paper1-v7-title">固定 10 mN 静态单点 · V7 仿真结论</h2>
+<p>双隐层主模型使用 820 个训练位置。表中各行均为该批位置与三个模型种子的同点对照，定位误差为三维距离。不同批次的误差应各自解读。</p>
+<div class="scroll"><table><thead><tr><th scope="col">评估</th><th scope="col">位置</th><th scope="col">直接场 P95</th><th scope="col">插值 P95</th></tr></thead><tbody>
+<tr><th scope="row">原独立空间测试</th><td>30</td><td>0.929 mm</td><td>121 锚点工程插值 1.817 mm</td></tr>
+<tr><th scope="row">等数量边界布点验证</th><td>12</td><td>0.918 mm</td><td>均匀 13.142 → 边界优化 3.877 mm</td></tr>
+<tr><th scope="row">同一组 147 锚点的样条验证</th><td>14</td><td>0.905 mm</td><td>周期 Delaunay 14.633 → 局部样条 1.774 mm</td></tr>
+<tr><th scope="row">柱侧混合带验证</th><td>10</td><td>0.704 mm</td><td>周期 Delaunay 1.834 → 局部样条 1.748 mm</td></tr>
+</tbody></table></div>
+<p>10 点混合带的平均相对场误差为 3.28% → 2.23%，方位角 P95 为 1.207° → 1.182°。结论限于 σ12 mm、固定 10 mN 和已测位置。</p>
+</section>
+<!-- PAPER1 V7 END --></main>
+<script>
+'use strict';
+const el=id=>document.getElementById(id), view=el('view'), wave=el('wave'), ctx=view.getContext('2d'), graph=wave.getContext('2d');
+const pilot={"train_sites": 26, "test_sites": 7, "mlp": {"mean": 11.99842740287333, "median": 3.652741197786135, "maximum": 58.938138713603884}, "template": {"mean": 15.269367905748952, "median": 10.0, "maximum": 40.0}, "comparisons": [{"site": "side_phi225", "reference": [-14.14213562373095, -14.14213562373095, 50.0], "mlp": [-8.211892166717725, -16.07740045450666, 108.60709135931698], "template": [-14.142135623730955, -14.14213562373095, 90.0], "mlp_mm": 58.938138713603884, "template_mm": 40.0}, {"site": "cap_beta022p5_phi270", "reference": [0.0, -7.653668647301796, 118.47759065022574], "mlp": [5.962205178875128, -13.566950277884446, 113.43093330943184], "template": [0.0, -20.0, 100.0], "mlp_mm": 9.797118992488587, "template_mm": 22.222809320784087}, {"site": "cap_beta033p75_phi090", "reference": [0.0, 11.111404660392044, 116.62939224605091], "mlp": [0.07780978831510331, 11.465086347556781, 116.3873652757211], "template": [0.0, 14.14213562373095, 114.14213562373095], "mlp_mm": 0.43557106579795535, "template_mm": 3.920685613182428}, {"site": "upper_side_z090_phi090", "reference": [0.0, 20.0, 90.0], "mlp": [0.3949335063023735, 19.99610030795004, 88.18150044300772], "template": [0.0, 20.0, 100.0], "mlp_mm": 1.8608944948006823, "template_mm": 10.0}, {"site": "shoulder_phi180", "reference": [-20.0, 0.0, 100.0], "mlp": [-19.83605871202113, -2.555538059440816, 97.39522232448729], "template": [-7.653668647301796, 0.0, 118.47759065022574], "mlp_mm": 3.652741197786135, "template_mm": 22.222809320784087}, {"site": "cap_beta084p375_phi090", "reference": [0.0, 19.90369453344394, 101.96034280659121], "mlp": [-0.02806063330156506, 19.904759549745656, 101.94929727534507], "template": [0.0, 19.945809133573803, 101.47129127199335], "mlp_mm": 0.030175108309950963, "template_mm": 0.49086153142879596}, {"site": "cap_beta084p375_phi337p5_sigma12", "reference": [18.38861600080564, -7.616814140804596, 101.96034280659121], "mlp": [15.309131408501868, -12.869751183190047, 94.96484163212331], "template": [14.142135623730947, -14.142135623730955, 100.0], "mlp_mm": 9.274352247326137, "template_mm": 8.028409554063282}]};
+const pilotAfter={"train_sites": 35, "test_sites": 7, "mlp": {"mean": 12.19814087933589, "median": 5.982059410290915, "maximum": 38.20163561417033}, "template": {"mean": 11.697939334320383, "median": 10.0, "maximum": 22.222809320784087}, "comparisons": [{"site": "side_phi225", "reference": [-14.14213562373095, -14.14213562373095, 50.0], "mlp": [-13.491635790862341, -14.764002292289252, 44.086019394500504], "template": [-14.142135623730955, -14.14213562373095, 65.0], "mlp_mm": 5.982059410290915, "template_mm": 15.0}, {"site": "cap_beta022p5_phi270", "reference": [0.0, -7.653668647301796, 118.47759065022574], "mlp": [9.943004381963675, -17.35328971291182, 82.89080969659533], "template": [0.0, -20.0, 100.0], "mlp_mm": 38.20163561417033, "template_mm": 22.222809320784087}, {"site": "cap_beta033p75_phi090", "reference": [0.0, 11.111404660392044, 116.62939224605091], "mlp": [0.07458146802328876, 11.99927738094695, 116.0003681188816], "template": [0.0, 14.14213562373095, 114.14213562373095], "mlp_mm": 1.0906657214010165, "template_mm": 3.920685613182428}, {"site": "upper_side_z090_phi090", "reference": [0.0, 20.0, 90.0], "mlp": [-0.07132777384897403, 19.9998728083125, 93.07050791078089], "template": [0.0, 20.0, 100.0], "mlp_mm": 3.0713362723199165, "template_mm": 10.0}, {"site": "shoulder_phi180", "reference": [-20.0, 0.0, 100.0], "mlp": [-19.80327388492632, -2.798275082724237, 85.43160818345835], "template": [-7.653668647301796, 0.0, 118.47759065022574], "mlp_mm": 14.836006360312233, "template_mm": 22.222809320784087}, {"site": "cap_beta084p375_phi090", "reference": [0.0, 19.90369453344394, 101.96034280659121], "mlp": [0.002929011675378689, 19.944444384241162, 101.48967433514902], "template": [0.0, 19.945809133573803, 101.47129127199335], "mlp_mm": 0.47243829169440016, "template_mm": 0.49086153142879596}, {"site": "cap_beta084p375_phi337p5_sigma12", "reference": [18.38861600080564, -7.616814140804596, 101.96034280659121], "mlp": [18.07645984575678, -8.558130604562121, 80.25013757342545], "template": [14.142135623730947, -14.142135623730955, 100.0], "mlp_mm": 21.732844485162406, "template_mm": 8.028409554063282}]};
+const R=20, H=100, TAU=2*Math.PI, baseScale=3.7;
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x)), dot=(a,b)=>a.reduce((s,x,i)=>s+x*b[i],0), length=a=>Math.hypot(...a);
+const side=(z,a,r=R)=>[r*Math.cos(a),r*Math.sin(a),z];
+const cap=(b,a,r=R)=>[r*Math.sin(b)*Math.cos(a),r*Math.sin(b)*Math.sin(a),H+r*Math.cos(b)];
+const normal=p=>p[2]>H?[p[0]/R,p[1]/R,(p[2]-H)/R]:[p[0]/R,p[1]/R,0];
+const sensors=[];
+for(const z of [17,42,67,91])for(let k=0;k<8;k++)sensors.push(side(z,k*TAU/8,14.8));
+for(const b of [Math.PI/3,Math.PI/6])for(let k=0;k<8;k++)sensors.push(cap(b,k*TAU/8,14.8));
+sensors.push(cap(0,0,14.8));
+const templates=[];
+for(let k=0;k<24;k++){
+ const a=k*TAU/24;
+ for(const z of [15,30,45,60,75,88,96,100])templates.push({p:side(z,a),name:z===100?'接缝':'柱侧'});
+ for(const b of [20,40,60,75,84.375])templates.push({p:cap(b*Math.PI/180,a),name:'球帽'});
+}
+templates.push({p:cap(0,0),name:'球顶'});
+function signature(p){
+ const n=normal(p);
+ return sensors.flatMap(s=>{
+  const diff=s.map((x,i)=>x-p[i]), d=length(diff), unit=diff.map(x=>x/d), weight=1.5*Math.exp(-d*d/410);
+  return unit.map((u,i)=>weight*(3*dot(n,unit)*u-n[i]));
+ });
+}
+for(const t of templates){t.v=signature(t.p);t.norm=length(t.v);}
+function describe(p){
+ const a=(Math.atan2(p[1],p[0])*180/Math.PI+360)%360;
+ if(p[2]>H+0.2){const beta=Math.acos(clamp((p[2]-H)/R,-1,1))*180/Math.PI;return beta<.2?'球顶':`球帽 φ${a.toFixed(1)}° · β${beta.toFixed(1)}°`;}
+ return `${Math.abs(p[2]-H)<=.2?'接缝':'柱侧'} φ${a.toFixed(1)}° · z${p[2].toFixed(1)} mm`;
+}
+let yaw=.75,elev=.29,zoom=1,mode='touch',exploded=false,contact=null,gain=1,gesture=null,animation=null;
+let series=[],lastSample=-Infinity, activeChannels=[], recentChannels=[];
+const colors=['#70c4ff','#e995cc','#6ce2af'];
+const rows=sensors.map((_,i)=>{
+ const option=document.createElement('option');option.value=i;option.textContent=`Hall ${String(i+1).padStart(2,'0')}`;el('channel').append(option);
+ const row=document.createElement('tr');
+ for(let c=0;c<5;c++)row.insertCell().textContent=c===0?option.textContent:'0.000';
+ el('values').append(row);
+ return row;
+});
+function axes(){
+ const c=Math.cos(yaw),s=Math.sin(yaw),u=Math.cos(elev),v=Math.sin(elev);
+ return {right:[c,-s,0],up:[-s*v,-c*v,u],toward:[s*u,c*u,v]};
+}
+function viewport(){
+ const cx=view.width/2, cy=view.height/2;
+ return {x:cx,y:cy+(500-cy)*zoom,scale:baseScale*zoom};
+}
+function project(p,a){
+ const v=viewport();
+ return [v.x+v.scale*dot(p,a.right),v.y-v.scale*dot(p,a.up),dot(p,a.toward)];
+}
+function pick(x,y){
+ const a=axes(),v=viewport(),sx=(x-v.x)/v.scale,sy=(v.y-y)/v.scale;
+ const p=a.right.map((v,i)=>sx*v+sy*a.up[i]), d=a.toward;
+ const hits=[];
+ function intersect(A,B,C,valid){
+  const det=B*B-4*A*C;if(det<0||A<1e-12)return;
+  for(const t of [(-B+Math.sqrt(det))/(2*A),(-B-Math.sqrt(det))/(2*A)]){
+   const q=p.map((v,i)=>v+t*d[i]);if(valid(q))hits.push({t,q});
+  }
+ }
+ intersect(d[0]**2+d[1]**2,2*(p[0]*d[0]+p[1]*d[1]),p[0]**2+p[1]**2-R*R,q=>q[2]>=0&&q[2]<=H);
+ const center=[p[0],p[1],p[2]-H];
+ intersect(1,2*dot(center,d),dot(center,center)-R*R,q=>q[2]>=H);
+ return hits.sort((a,b)=>b.t-a.t)[0]?.q??null;
+}
+function faces(r,zMin,zMax){
+ const rings=[];
+ for(let j=0;j<=8;j++)rings.push(a=>side(zMin+(zMax-zMin)*j/8,a,r));
+ for(let j=1;j<=9;j++)rings.push(a=>cap(Math.PI/2*(1-j/9),a,r));
+ const quads=[];
+ for(let j=0;j<rings.length-1;j++)for(let k=0;k<40;k++){
+  const a=k*TAU/40,b=(k+1)*TAU/40;
+  quads.push([rings[j](a),rings[j](b),rings[j+1](b),rings[j+1](a)]);
+ }
+ return quads;
+}
+const outer=faces(20,0,100),inner=faces(13.8,2,100),base=Array.from({length:48},(_,i)=>side(0,i*TAU/48,20));
+const magnets=[];
+function magnet(center,n,color){
+ const a=Math.atan2(n[1],n[0]),u=[-Math.sin(a),Math.cos(a),0];
+ const v=[-n[2]*u[1],n[2]*u[0],n[0]*u[1]-n[1]*u[0]];
+ const rings=[-.5,.5].map(h=>Array.from({length:12},(_,i)=>{
+  const t=i*TAU/12;
+  return center.map((x,k)=>x+h*n[k]+2.5*(u[k]*Math.cos(t)+v[k]*Math.sin(t)));
+ }));
+ const sides=rings[0].map((q,i)=>{const j=(i+1)%12;return [q,rings[0][j],rings[1][j],rings[1][i]];});
+ magnets.push({caps:rings,sides,color,normal:n});
+}
+for(let j=0;j<10;j++)for(let k=0;k<12;k++){
+ const a=(k+(j%2)*.5)*TAU/12;
+ magnet(side(6+j*9.8,a,17.4),[Math.cos(a),Math.sin(a),0],(j+k)%2?'#de91bc':'#957ce5');
+}
+for(const [j,[beta,count]] of [[76,12],[58,10],[40,7],[22,5],[0,1]].entries())for(let k=0;k<count;k++){
+ const a=(k+(j%2)*.5)*TAU/count,b=beta*Math.PI/180;
+ magnet(cap(b,a,17.4),[Math.sin(b)*Math.cos(a),Math.sin(b)*Math.sin(a),Math.cos(b)],(j+k)%2?'#de91bc':'#957ce5');
+}
+function shownChannels(){
+ const selected=el('channel').value;
+ return selected==='auto'?(activeChannels.length?activeChannels.slice(0,4):recentChannels):[Number(selected)];
+}
+const enabled=name=>document.querySelector(`[data-layer="${name}"]`).checked;
+function facesViewer(outward,viewDirection){
+ return dot(outward,viewDirection)>1e-9;
+}
+function faceCenter(points){
+ return [0,1,2].map(i=>points.reduce((sum,p)=>sum+p[i],0)/points.length);
+}
+function scene(est,field){
+ const a=axes(), p=q=>project(q,a), draws=[];
+ const visible=outward=>facesViewer(outward,a.toward);
+ const shift=(v,n)=>exploded?[v[0]+n,v[1],v[2]]:v;
+ const mesh=(polys,color,alpha,offset,lines=false,shell=false)=>{
+  for(const poly of polys){
+   if(shell&&!visible(normal(faceCenter(poly))))continue;
+   const points=poly.map(q=>p(shift(q,offset))), depth=points.reduce((s,v)=>s+v[2],0)/points.length;
+   draws.push({depth,draw(){
+    ctx.globalAlpha=alpha;ctx.fillStyle=color;ctx.strokeStyle=color;ctx.lineWidth=.5;ctx.beginPath();
+    points.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.closePath();ctx.fill();
+    if(lines){ctx.globalAlpha=Math.min(.34,alpha+.10);ctx.stroke();}
+   }});
+  }
+ };
+ const point=(v,r,color,ring=false,offset=0,front=false)=>{
+  const [x,y,depth]=p(shift(v,offset));
+  draws.push({depth:front?1000:depth,draw(){ctx.globalAlpha=1;ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,r,0,TAU);ring?ctx.stroke():ctx.fill();}});
+ };
+ if(enabled('outer'))mesh(outer,'#6ca8d1',Number(el('opacity').value)/100,0,true,true);
+ if(enabled('inner'))mesh(inner,'#a2b5cb',.10,48,true,true);
+ if(enabled('base'))mesh([base],'#68788d',.74,0);
+ if(enabled('magnet'))for(const m of magnets){
+  if(!visible(m.normal))continue;
+  mesh(m.sides,'#594976',.9,-46);mesh([m.caps[1]],m.color,.96,-46,true);
+ }
+ if(enabled('sensor'))sensors.forEach((q,i)=>{
+  if(visible(normal(q)))point(q,2.4+Math.min(3,length(field.slice(3*i,3*i+3))),shownChannels().includes(i)?'#fff0a0':'#70c4ff',false,25);
+ });
+ if(est&&visible(normal(est.p)))point(est.p,10,'#6ce2af',true,0,true);
+ if(contact&&visible(normal(contact)))point(contact,5,'#ffc279',false,0,true);
+ const saved=pilot.comparisons[Number(el('pilot-site').value)];
+ if(el('pilot-site').value!==''&&saved){
+  if(visible(normal(saved.reference)))point(saved.reference,6,'#ffc279',true,0,true);
+  if(visible(normal(saved.mlp)))point(saved.mlp,9,'#6ce2af',true,0,true);
+  if(visible(normal(saved.template)))point(saved.template,12,'#e995cc',true,0,true);
+ }
+ ctx.clearRect(0,0,view.width,view.height);
+ draws.sort((a,b)=>a.depth-b.depth).forEach(o=>o.draw());
+ ctx.globalAlpha=1;ctx.font='14px system-ui';ctx.fillStyle='#d6e4f3';
+ ctx.fillText('浅蓝 外壳 · 紫粉 圆片磁体 · 蓝点 Hall · 黄点 当前观察 · 灰色 内壳与底座',13,24);
+ ctx.fillText('橙点 接触位置 · 绿圈 估计位置',13,46);
+}
+function plot(){
+ const ids=shownChannels(), height=Math.max(100,ids.length*82);
+ if(wave.height!==height)wave.height=height;
+ wave.style.aspectRatio=`480/${height}`;
+ graph.clearRect(0,0,wave.width,wave.height);
+ if(!ids.length){graph.fillStyle='#aebfd2';graph.font='14px system-ui';graph.fillText('等待磁场变化超过通道阈值',20,54);return;}
+ const selected=ids.map(id=>series.map(v=>v.slice(3*id,3*id+3)));
+ const limit=Math.max(.15,...selected.flat(2).map(Math.abs));
+ ids.forEach((id,row)=>{
+  const top=row*82, y=v=>top+49-v*24/limit;
+  graph.strokeStyle='#60768b';graph.beginPath();graph.moveTo(18,y(0));graph.lineTo(470,y(0));graph.stroke();
+  graph.font='12px system-ui';graph.fillStyle='#d6e4f3';
+  graph.fillText(`Hall ${String(id+1).padStart(2,'0')} · ±${limit.toFixed(2)}`,18,top+16);
+  for(let c=0;c<3;c++){
+   graph.strokeStyle=colors[c];graph.lineWidth=1.6;graph.beginPath();
+   selected[row].forEach((sample,i)=>{const x=18+452*i/119;i?graph.lineTo(x,y(sample[c])):graph.moveTo(x,y(sample[c]));});
+   graph.stroke();
+  }
+ });
+}
+function positionError(reference,prediction,distance){
+ const degrees=180/Math.PI;
+ const radial=p=>Math.hypot(p[0],p[1]);
+ const azimuth=p=>Math.atan2(p[1],p[0]);
+ const polar=p=>Math.atan2(radial(p),p[2]-H)*degrees;
+ const refCap=reference[2]>H+1e-8, predCap=prediction[2]>H+1e-8;
+ const delta=azimuth(prediction)-azimuth(reference);
+ const phi=radial(reference)<1e-8||radial(prediction)<1e-8
+  ?'Δφ —（球顶方位未定义）'
+  :'Δφ '+(Math.abs(Math.atan2(Math.sin(delta),Math.cos(delta)))*degrees).toFixed(2)+'°';
+ const local=refCap&&predCap
+  ?'Δβ '+Math.abs(polar(prediction)-polar(reference)).toFixed(2)+'°'
+  :'Δz '+Math.abs(prediction[2]-reference[2]).toFixed(2)+' mm'+(refCap!==predCap?'（跨柱侧／球帽）':'');
+ return '3D '+distance.toFixed(2)+' mm · '+phi+' · '+local;
+}
+const comparisonSites=[{"site":"side_phi225","reference":[-14.14213562373095,-14.14213562373095,50.0],"mlp":[-13.88644338978386,-14.39328628153863,54.83134273649744],"template":[-14.142135623730955,-14.14213562373095,65.0],"mlp_mm":4.844618437908672,"template_mm":15.0,"split":"legacy"},{"site":"cap_beta022p5_phi270","reference":[0.0,-7.653668647301796,118.47759065022574],"mlp":[1.8649311268827133,-9.376059249919345,117.56734313531747],"template":[-1.8369701987210296e-15,-9.999999999999998,117.32050807568878],"mlp_mm":2.696877460026306,"template_mm":2.6161251692057186,"split":"legacy"},{"site":"cap_beta033p75_phi090","reference":[0.0,11.111404660392044,116.62939224605091],"mlp":[-0.5601730884356648,10.71917227295526,116.87559041615135],"template":[6.123233995736765e-16,9.999999999999998,117.32050807568878],"mlp_mm":0.7268106175082447,"template_mm":1.3087633128710452,"split":"legacy"},{"site":"upper_side_z090_phi090","reference":[0.0,20.0,90.0],"mlp":[-0.2504593941447568,19.998431690807273,91.16039671984264],"template":[1.2246467991473533e-15,20.0,88.0],"mlp_mm":1.1871195875439995,"template_mm":2.0,"split":"legacy"},{"site":"lower_side_z012_phi090","reference":[0.0,20.0,12.0],"mlp":[-0.48811240559164204,19.99404276977289,9.911257000054604],"template":[1.2246467991473533e-15,20.0,50.0],"mlp_mm":2.1450259972562873,"template_mm":38.0,"split":"side_low_phi90"},{"site":"shoulder_phi315","reference":[14.142135623730947,-14.142135623730955,100.0],"mlp":[14.097115531958696,-14.187012852556698,94.70240556230958],"template":[13.660254037844384,-13.66025403784439,105.17638090205041],"mlp_mm":5.297975802188865,"template_mm":5.221047688802059,"split":"seam_phi315"},{"site":"shoulder_phi180","reference":[-20.0,0.0,100.0],"mlp":[-19.99988805040448,-0.06691764556653162,98.26003100083183],"template":[-19.987816540381914,2.4478015548123235e-15,100.69798993405003],"mlp_mm":1.741255323577551,"template_mm":0.6980962574913493,"split":"legacy"},{"site":"cap_beta084p375_phi090","reference":[0.0,19.90369453344394,101.96034280659121],"mlp":[-0.2137543040174292,18.99140168331179,106.26745332656064],"template":[1.2199866483456202e-15,19.92389396183491,101.74311485495316],"mlp_mm":4.407853239176587,"template_mm":0.21816507484055622,"split":"legacy"},{"site":"cap_beta084p375_phi337p5_sigma12","reference":[18.38861600080564,-7.616814140804596,101.96034280659121],"mlp":[18.720875610730484,-7.037671231846264,96.78279110724668],"template":[13.660254037844384,-13.66025403784439,105.17638090205041],"mlp_mm":5.220425706469693,"template_mm":8.320064523388988,"split":"legacy"},{"site":"cap_beta045_phi225_sigma12","reference":[-10.000000000000002,-9.999999999999998,114.14213562373095],"mlp":[-10.727020421577073,-8.813610471337544,114.39622531549843],"template":[-13.66025403784439,-13.660254037844386,105.17638090205041],"mlp_mm":1.4144399522682165,"template_mm":10.352761804100835,"split":"cap_midlat_phi225"},{"site":"cap_beta060_phi225_sigma12","reference":[-12.247448713915892,-12.24744871391589,110.0],"mlp":[-12.41146450956183,-11.27876100893282,110.89702247548678],"template":[-13.66025403784439,-13.660254037844386,105.17638090205041],"mlp_mm":1.3303782817436423,"template_mm":5.221047688802068,"split":"cap_midlat_phi225"},{"site":"cap_beta085_phi315_sigma12","reference":[14.088320528055169,-14.088320528055176,101.74311485495316],"mlp":[14.160947890408856,-14.123298299091648,96.82926320337955],"template":[13.660254037844384,-13.66025403784439,105.17638090205041],"mlp_mm":4.914512817350445,"template_mm":3.4862297099063233,"split":"seam_phi315"},{"site":"cap_beta088_phi315_sigma12","reference":[14.133520616816686,-14.133520616816693,100.69798993405003],"mlp":[14.121159758478763,-14.163080423252563,95.5383792949757],"template":[13.660254037844384,-13.66025403784439,105.17638090205041],"mlp_mm":5.159710119747464,"template_mm":4.528128550716256,"split":"seam_phi315"},{"site":"side_z003_phi090_sigma12","reference":[1.2246467991473533e-15,20.0,3.0],"mlp":[-0.8704805020206827,19.98104761256531,9.609590649101683],"template":[1.2246467991473533e-15,20.0,50.0],"mlp_mm":6.666692136740684,"template_mm":47.0,"split":"side_low_phi90"},{"site":"side_z030_phi090_sigma12","reference":[1.2246467991473533e-15,20.0,30.0],"mlp":[-0.33271613799909927,19.99723230778487,21.69036971195198],"template":[1.2246467991473533e-15,20.0,50.0],"mlp_mm":8.316289028926919,"template_mm":20.0,"split":"side_low_phi90"},{"site":"side_z097_phi315_sigma12","reference":[14.142135623730947,-14.142135623730955,97.0],"mlp":[14.024873779678602,-14.25843313495854,90.34904524623119],"template":[13.660254037844384,-13.66025403784439,105.17638090205041],"mlp_mm":6.653004929193145,"template_mm":8.204731828710052,"split":"seam_phi315"},{"site":"side_z099_phi315_sigma12","reference":[14.142135623730947,-14.142135623730955,99.0],"mlp":[14.070337483006185,-14.213571089431085,93.21185997768775],"template":[13.660254037844384,-13.66025403784439,105.17638090205041],"mlp_mm":5.789026076695817,"template_mm":6.213863594644329,"split":"seam_phi315"}];
+const compareSelect=el('compare-site');
+const comparisonGroup={legacy:'原7点',cap_midlat_phi225:'球帽留出',seam_phi315:'接缝留出',side_low_phi90:'低柱侧留出'};
+comparisonSites.forEach((row,i)=>{
+ const option=new Option((comparisonGroup[row.split]||row.split)+' · '+describe(row.reference),String(i));
+ compareSelect.add(option);
+});
+function showComparison(){
+ const row=comparisonSites[Number(compareSelect.value)];
+ el('compare-reference').textContent=describe(row.reference);
+ el('compare-mlp').textContent=describe(row.mlp)+' · '+positionError(row.reference,row.mlp,row.mlp_mm);
+ el('compare-template').textContent=describe(row.template)+' · '+positionError(row.reference,row.template,row.template_mm);
+}
+compareSelect.addEventListener('change',showComparison);
+showComparison();
+
+const scienceStatus={
+  direct:'工程锚点 · 直接磁场',
+  engineering:'121 锚点工程插值',
+  unsupported:'该坐标缺少工程网格支撑'
+};
+let scienceQuery='',scienceSent='',scienceBusy=false,scienceTimer=null,scienceEpoch=0;
+function clearScience(label){
+ el('science-source').textContent=label;
+ for(const id of ['science-reference','science-paper','science-mlp','science-template'])el(id).textContent='—';
+}
+function queueScience(p){
+ if(!p){
+  if(scienceQuery||scienceSent){scienceEpoch++;scienceQuery='';scienceSent='';clearScience('等待触摸');}
+  return;
+ }
+ const capPoint=p[2]>H;
+ const phi=(Math.atan2(p[1],p[0])*180/Math.PI+360)%360;
+ const level=capPoint?Math.acos(Math.min(1,Math.max(0,(p[2]-H)/R)))*180/Math.PI:p[2];
+ const q=new URLSearchParams({region:capPoint?'cap':'side',phi:phi.toFixed(3),level:level.toFixed(3)}).toString();
+ if(q===scienceQuery)return;
+ if(!scienceQuery)clearScience('正在计算');
+ scienceQuery=q;
+ scheduleScience();
+}
+function scheduleScience(){
+ if(scienceBusy||scienceTimer!==null||!scienceQuery||scienceQuery===scienceSent)return;
+ scienceTimer=setTimeout(fetchScience,100);
+}
+async function fetchScience(){
+ scienceTimer=null;
+ if(!scienceQuery||scienceQuery===scienceSent)return;
+ const query=scienceQuery,epoch=scienceEpoch;
+ scienceSent=query;scienceBusy=true;
+ try{
+  const p=new URLSearchParams(query);
+  const data=MagTouchInfer.infer(p.get('region'),Number(p.get('phi')),Number(p.get('level')));
+  if(data.source==='unsupported'){
+    if(epoch===scienceEpoch)clearScience(scienceStatus.unsupported);
+    return;
+  }
+  if(epoch!==scienceEpoch)return;
+  el('science-source').textContent=scienceStatus[data.source];
+  el('science-reference').textContent=describe(data.reference);
+  el('science-paper').textContent=describe(data.paper)+' · '+positionError(data.reference,data.paper,data.paper_mm);
+  el('science-mlp').textContent=describe(data.mlp)+' · '+positionError(data.reference,data.mlp,data.mlp_mm);
+  el('science-template').textContent=describe(data.template)+' · '+positionError(data.reference,data.template,data.template_mm);
+ }catch{
+  if(epoch===scienceEpoch)clearScience('科研预测暂不可用');
+ }finally{
+  scienceBusy=false;scheduleScience();
+ }
+}
+function update(now,record=true){
+ queueScience(contact);
+ const src=contact?signature(contact):Array(sensors.length*3).fill(0);
+ const f=Number(el('force').value), n=Number(el('noise').value);
+ const noise=src.map((_,i)=>n/100*Math.sin(i*4.47+now*.021));
+ const v=src.map((x,i)=>x*f/10*gain+noise[i]);
+ const scale=Math.sqrt(v.length), norm=length(v), rms=norm/scale;
+ const detectionThreshold=Math.max(.10,length(noise)/scale+.025);
+ const detected=rms>detectionThreshold;
+ let best=null,second=-Infinity,score=-Infinity;
+ if(detected)for(const t of templates){
+  const sim=dot(v,t.v)/(norm*t.norm);
+  if(sim>score){second=score;score=sim;best=t;}else if(sim>second)second=sim;
+ }
+ const est=best&&score>.75&&score-second>.00015?best:null;
+ el('actual').textContent=contact?describe(contact):'已释放';
+ el('detected').textContent=detected?'已检出触摸':'未检出触摸';
+ el('estimate').textContent=est?describe(est.p)+' · 相似度 '+score.toFixed(4):detected?'无法可靠归类':'—';
+ el('compare-actual').textContent=contact?describe(contact):'已释放';
+ el('compare-estimate').textContent=contact&&est?describe(est.p):'—';
+ el('compare-error').textContent=contact&&est?positionError(contact,est.p,Math.hypot(...contact.map((axis,i)=>axis-est.p[i]))):'—';
+ el('field').textContent=`${rms.toFixed(3)} / ${detectionThreshold.toFixed(3)}`;
+ el('force-label').textContent=(f/1000).toFixed(3)+' N';el('noise-label').textContent=n+'%';
+ const magnitudes=sensors.map((_,i)=>length(v.slice(3*i,3*i+3)));
+ const threshold=Math.max(.065,n/100*Math.sqrt(3)+.025);
+ activeChannels=magnitudes.map((value,id)=>({id,value})).filter(x=>x.value>=threshold)
+   .sort((a,b)=>b.value-a.value||a.id-b.id).map(x=>x.id);
+ if(activeChannels.length)recentChannels=activeChannels.slice(0,4);
+ const shown=shownChannels();
+ const automatic=el('channel').value==='auto';
+ const display=automatic?activeChannels.slice(0,4):shown;
+ el('channel-status').textContent=automatic?
+  (activeChannels.length?'活跃 '+activeChannels.length+' 路，显示变化最大的 '+display.length+' 路':
+   recentChannels.length?'当前无活跃通道，曲线保留上次触摸':'当前无活跃通道')+' · 通道阈值 '+threshold.toFixed(3):
+  '手动观察 · 活跃通道 '+activeChannels.length+' 路';
+ rows.forEach((row,i)=>{
+  const b=v.slice(i*3,i*3+3);[...b,magnitudes[i]].forEach((x,c)=>{row.cells[c+1].textContent=x.toFixed(3);});
+  row.hidden=!display.includes(i);
+ });
+ for(const id of display)el('values').append(rows[id]);
+ if(record&&(now-lastSample>=38||!series.length)){series.push(v);if(series.length>120)series.shift();lastSample=now;}
+ scene(est,v);plot();
+}
+function pointer(e){
+ const rect=view.getBoundingClientRect();
+ return [(e.clientX-rect.left)*view.width/rect.width,(e.clientY-rect.top)*view.height/rect.height];
+}
+function setMode(next){mode=next;for(const id of ['touch','orbit'])el(id).setAttribute('aria-pressed',String(id===next));view.style.cursor=next==='touch'?'crosshair':'grab';}
+function stopPlayback(){animation=null;el('play').textContent='播放预设';}
+view.addEventListener('wheel',e=>{
+ e.preventDefault();
+ const delta=e.deltaY*(e.deltaMode===1?16:e.deltaMode===2?view.height:1);
+ zoom=clamp(zoom*Math.exp(-delta*.0015),.55,2.8);
+ update(performance.now(),false);
+},{passive:false});
+view.addEventListener('auxclick',e=>{if(e.button===1)e.preventDefault();});
+view.addEventListener('pointerdown',e=>{
+ if(gesture||(e.button!==0&&e.button!==1))return;
+ const gestureMode=e.button===1?'orbit':mode;
+ if(e.button===1)e.preventDefault();
+ if(gestureMode==='touch'){stopPlayback();contact=pick(...pointer(e));gain=1;}
+ view.setPointerCapture(e.pointerId);
+ gesture={id:e.pointerId,x:e.clientX,y:e.clientY,mode:gestureMode};
+ if(gestureMode==='orbit')view.style.cursor='grabbing';
+ update(performance.now());
+});
+view.addEventListener('pointermove',e=>{
+ if(gesture?.id!==e.pointerId)return;
+ if(gesture.mode==='orbit'){
+  yaw+=(e.clientX-gesture.x)*.012;elev=clamp(elev+(e.clientY-gesture.y)*.009,-1.25,1.25);
+  gesture.x=e.clientX;gesture.y=e.clientY;
+ }else contact=pick(...pointer(e));
+ update(performance.now());
+});
+for(const name of ['pointerup','pointercancel','lostpointercapture'])view.addEventListener(name,e=>{
+ if(gesture?.id!==e.pointerId)return;
+ if(gesture.mode==='touch')contact=null;
+ gesture=null;setMode(mode);update(performance.now());
+});
+for(const name of ['touch','orbit'])el(name).onclick=()=>setMode(name);
+el('reset').onclick=()=>{yaw=.75;elev=.29;zoom=1;update(performance.now(),false);};
+el('release').onclick=()=>{stopPlayback();contact=null;update(performance.now());};
+el('explode').onclick=()=>{exploded=!exploded;el('explode').setAttribute('aria-pressed',String(exploded));update(performance.now(),false);};
+for(const name of ['layers','opacity','force','noise','channel'])el(name).addEventListener('input',()=>update(performance.now()));
+el('clear').onclick=()=>{series=[];recentChannels=[];update(performance.now(),false);};
+el('play').onclick=()=>{
+ if(animation!==null){stopPlayback();contact=null;update(performance.now());return;}
+ animation=performance.now();el('play').textContent='停止预设';
+ requestAnimationFrame(loop);
+};
+function loop(now){
+ if(animation===null)return;
+ const t=clamp((now-animation)/2500,0,1), a=el('action').value;
+ gain=a==='tap'?Math.max(0,1-Math.abs(t-.35)/.20):Math.min(t*5,(1-t)*5,1);
+ contact=gain>0?(a==='slide'?side(100,.2+t*1.5):cap(84.375*Math.PI/180,.9)):null;
+ update(now);
+ if(t<1)requestAnimationFrame(loop);else stopPlayback();
+}
+const pilotSite=el('pilot-site');
+const xyz=p=>p.map(v=>v.toFixed(2)).join(', ');
+for(const [i,r] of pilot.comparisons.entries()){
+ const option=document.createElement('option');option.value=i;option.textContent=describe(r.reference);pilotSite.append(option);
+ const tr=document.createElement('tr');
+ for(const value of [option.textContent,xyz(r.reference),xyz(r.mlp),r.mlp_mm.toFixed(2),xyz(r.template),r.template_mm.toFixed(2)])tr.insertCell().textContent=value;
+ el('pilot-values').append(tr);
+}
+el('pilot-summary').textContent='补数前：'+pilot.train_sites+' 个训练位点。平均误差 MLP '+pilot.mlp.mean.toFixed(2)+' mm，模板 '+pilot.template.mean.toFixed(2)
+ +' mm。中位数 '+pilot.mlp.median.toFixed(2)+' / '+pilot.template.median.toFixed(2)
+ +' mm，最大误差 '+pilot.mlp.maximum.toFixed(2)+' / '+pilot.template.maximum.toFixed(2)+' mm。';
+if(pilotAfter){
+ const after=el('pilot-after-summary');
+ after.textContent='补数后：'+pilotAfter.train_sites+' 个训练位点，原 7 个留出位点。平均误差 MLP '+pilotAfter.mlp.mean.toFixed(2)+' mm，模板 '+pilotAfter.template.mean.toFixed(2)
+  +' mm。中位数 '+pilotAfter.mlp.median.toFixed(2)+' / '+pilotAfter.template.median.toFixed(2)+' mm，最大误差 '+pilotAfter.mlp.maximum.toFixed(2)+' / '+pilotAfter.template.maximum.toFixed(2)+' mm。';
+ const table=document.createElement('table'), head=table.createTHead().insertRow();
+ for(const name of ['留出位点','参考 XYZ','MLP 前 → 后','MLP 补数后 XYZ','模板 前 → 后','模板补数后 XYZ']){
+  const th=document.createElement('th');th.textContent=name;head.append(th);
+ }
+ const body=table.createTBody();
+ for(const old of pilot.comparisons){
+  const next=pilotAfter.comparisons.find(r=>r.site===old.site);
+  const tr=body.insertRow();
+  if(old.site==='side_phi225')tr.style.background='#2b3140';
+  for(const value of [describe(old.reference),xyz(old.reference),old.mlp_mm.toFixed(2)+' → '+next.mlp_mm.toFixed(2),xyz(next.mlp),old.template_mm.toFixed(2)+' → '+next.template_mm.toFixed(2),xyz(next.template)])tr.insertCell().textContent=value;
+ }
+ const panel=el('pilot-before-after');panel.append(table);panel.hidden=false;
+}
+function showPilot(){
+ if(pilotSite.value!==''){
+  const [x,y]=pilot.comparisons[Number(pilotSite.value)].reference;
+  yaw=Math.atan2(x,y);elev=.32;zoom=1;
+ }
+ update(performance.now(),false);
+}
+pilotSite.addEventListener('change',showPilot);
+el('pilot-show').onclick=()=>{if(pilotSite.value==='')pilotSite.value='0';showPilot();view.scrollIntoView({block:'center',behavior:'smooth'});};
+setInterval(()=>{if(animation===null)update(performance.now());},80);
+update(performance.now());
+</script>
+</html>
+
+
+
